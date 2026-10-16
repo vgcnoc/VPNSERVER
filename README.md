@@ -1,5 +1,7 @@
 # VPNRENT Enterprise
 
+The initial billing, Midtrans sandbox, reseller ledger and CHR provisioning workflows are now implemented. See [integration setup and current limitations](docs/INTEGRATIONS.md). They have not yet been tested with a real Midtrans account or CHR gateway. This is not a production-complete release.
+
 VPNRENT Enterprise is a Laravel SaaS foundation for an authorized, multi-tenant VPN rental operation. This repository deliberately does **not** claim a WireGuard, payment-gateway, MikroTik, or VPS integration until that component is separately implemented and tested against real infrastructure.
 
 ## Phase 1 — implemented scope (acceptance still pending)

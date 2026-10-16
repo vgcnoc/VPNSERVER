@@ -19,3 +19,22 @@ Route::middleware(['auth', 'tenant'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::middleware(['auth', 'verified', 'tenant', 'throttle:60,1'])->group(function () {
+    Route::get('/billing', [\App\Http\Controllers\BillingController::class, 'index'])->name('billing.index');
+    Route::get('/vpn', [\App\Http\Controllers\VpnController::class, 'index'])->name('vpn.index');
+    Route::post('/vpn/{subscription}/provision', [\App\Http\Controllers\VpnController::class, 'provision'])->name('vpn.provision');
+    Route::post('/vpn/peers/{peer}/retry', [\App\Http\Controllers\VpnController::class, 'retry'])->name('vpn.retry');
+    Route::get('/resellers', [\App\Http\Controllers\ResellerController::class, 'index'])->name('resellers.index');
+    Route::post('/resellers', [\App\Http\Controllers\ResellerController::class, 'register'])->name('resellers.register');
+    Route::post('/resellers/{account}', [\App\Http\Controllers\ResellerController::class, 'update'])->name('resellers.update');
+    Route::post('/resellers/{account}/customers', [\App\Http\Controllers\ResellerController::class, 'customer'])->name('resellers.customer');
+    Route::post('/billing/invoices/{invoice}/checkout', [\App\Http\Controllers\MidtransController::class, 'checkout'])->name('billing.checkout');
+    Route::post('/billing/plans', [\App\Http\Controllers\BillingController::class, 'plan'])->name('billing.plans');
+    Route::post('/billing/orders', [\App\Http\Controllers\BillingController::class, 'order'])->name('billing.orders');
+    Route::post('/billing/invoices/{invoice}/approve', [\App\Http\Controllers\BillingController::class, 'approve'])->name('billing.approve');
+});
+
+Route::post('/webhooks/midtrans', [\App\Http\Controllers\MidtransController::class, 'notification'])
+    ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)
+    ->middleware('throttle:120,1');
