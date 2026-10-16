@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\RouterOsService;
 use App\Jobs\ProvisionPeer;
+use App\Models\VpnServer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -15,7 +16,7 @@ class ReconcileVpn extends Command
 
     public function handle(RouterOsService $router): int
     {
-        if (! config('routeros.enabled')) {
+        if (! config('routeros.enabled') && ! VpnServer::query()->where('status', 'active')->exists()) {
             $this->warn('RouterOS is not enabled. No gateway actions performed.');
             return self::FAILURE;
         }
@@ -35,12 +36,14 @@ class ReconcileVpn extends Command
                             return;
                         }
                         if ($sub->status === 'active' && $sub->expires_at && now()->gte($sub->expires_at)) {
-                            $router->suspend($peer);
+                            $server = $peer->vpn_server_id ? VpnServer::query()->find($peer->vpn_server_id) : null;
+                            $router->suspend($peer, $server);
                             DB::table('vpn_peers')->where('id', $peer->id)->update(['status' => 'suspended', 'checked_at' => now(), 'updated_at' => now()]);
                             $this->transition($sub, 'suspended');
                             return;
                         }
-                        $remote = $router->verifyExisting($peer);
+                        $server = $peer->vpn_server_id ? VpnServer::query()->find($peer->vpn_server_id) : null;
+                        $remote = $router->verifyExisting($peer, $server);
                         $elapsed = $remote['last-handshake'] ?? null;
                         DB::table('vpn_peers')->where('id', $peer->id)->update(['last_handshake' => is_scalar($elapsed) ? substr((string) $elapsed, 0, 100) : null, 'rx' => ctype_digit((string) ($remote['rx'] ?? '')) ? (int) $remote['rx'] : null, 'tx' => ctype_digit((string) ($remote['tx'] ?? '')) ? (int) $remote['tx'] : null, 'checked_at' => now(), 'updated_at' => now()]);
                         // Accept only unambiguous positive seconds; zero may mean never connected.

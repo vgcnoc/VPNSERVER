@@ -22,6 +22,8 @@ Reference: https://docs.midtrans.com/docs/snap-snap-integration-guide and https:
 
 ## Configure a dedicated RouterOS 7 test gateway
 
+Super Admins can now register multiple gateways from **VPN Servers** in the console. The saved password is encrypted at rest and never rendered back to the browser. Add one server, use **Test connection**, then select an active server as **Default**; new provisioning requests use that server and persist its identity with the peer. Disabling a default server intentionally stops new allocations until an active default is selected again. Existing peers remain attached to their original server.
+
 Direct CHR WireGuard management is implemented; Linux WireGuard, failover and arbitrary RouterOS scripting are not implemented. Before enabling gateway writes:
 
 1. Confirm this is an authorized test gateway. Take and retain a CHR backup independently before changing network settings.

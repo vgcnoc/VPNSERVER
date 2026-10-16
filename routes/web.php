@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\VpnServerController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,11 @@ Route::middleware(['auth', 'verified', 'tenant', 'throttle:60,1'])->group(functi
     Route::get('/organizations', [OrganizationController::class, 'index'])->name('organizations.index');
     Route::get('/billing', [\App\Http\Controllers\BillingController::class, 'index'])->name('billing.index');
     Route::get('/vpn', [\App\Http\Controllers\VpnController::class, 'index'])->name('vpn.index');
+    Route::get('/vpn-servers', [VpnServerController::class, 'index'])->middleware('role:super-admin')->name('vpn-servers.index');
+    Route::post('/vpn-servers', [VpnServerController::class, 'store'])->middleware('role:super-admin')->name('vpn-servers.store');
+    Route::post('/vpn-servers/{server}/default', [VpnServerController::class, 'makeDefault'])->middleware('role:super-admin')->name('vpn-servers.default');
+    Route::post('/vpn-servers/{server}/toggle', [VpnServerController::class, 'toggle'])->middleware('role:super-admin')->name('vpn-servers.toggle');
+    Route::post('/vpn-servers/{server}/check', [VpnServerController::class, 'check'])->middleware('role:super-admin')->name('vpn-servers.check');
     Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
     Route::post('/vpn/{subscription}/provision', [\App\Http\Controllers\VpnController::class, 'provision'])->name('vpn.provision');
     Route::post('/vpn/peers/{peer}/retry', [\App\Http\Controllers\VpnController::class, 'retry'])->name('vpn.retry');

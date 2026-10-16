@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\VpnServer;
 use App\Services\RouterOsService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -35,7 +36,8 @@ class ProvisionPeer implements ShouldQueue
             $jobId = (string) Str::uuid();
             DB::table('provisioning_jobs')->insert(['id' => $jobId, 'organization_id' => $peer->organization_id, 'vpn_peer_id' => $peer->id, 'action' => 'provision', 'status' => 'running', 'attempt' => $this->attempts(), 'created_at' => now(), 'updated_at' => now()]);
             try {
-                $router->provision($peer);
+                $server = $peer->vpn_server_id ? VpnServer::query()->find($peer->vpn_server_id) : null;
+                $router->provision($peer, $server);
                 DB::table('vpn_peers')->where('id', $peer->id)->update(['status' => 'verified', 'checked_at' => now(), 'updated_at' => now()]);
                 DB::table('provisioning_jobs')->where('id', $jobId)->update(['status' => 'succeeded', 'updated_at' => now()]);
                 return false;

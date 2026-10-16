@@ -19,6 +19,9 @@
                 <a href="{{ route('dashboard') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('dashboard') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center rounded-md bg-violet-400/20">⌁</span> Overview</a>
                 <a href="{{ route('organizations.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('organizations.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">◈</span> Organizations</a>
                 <a href="{{ route('vpn.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('vpn.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">⌁</span> VPN Infrastructure</a>
+                @if(auth()->user()->hasRole('super-admin'))
+                    <a href="{{ route('vpn-servers.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('vpn-servers.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">◫</span> VPN Servers</a>
+                @endif
                 <a href="{{ route('billing.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('billing.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">¤</span> Billing</a>
                 <a href="{{ route('resellers.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('resellers.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">◉</span> Resellers</a>
                 <a href="{{ route('automation.index') }}" @class(['flex items-center gap-3 rounded-xl px-3 py-2.5', request()->routeIs('automation.*') ? $navActive : $navIdle])><span class="grid h-6 w-6 place-items-center">□</span> Automation</a>
