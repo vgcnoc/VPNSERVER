@@ -30,5 +30,6 @@
         </aside>
         <div class="min-w-0"><header class="border-b border-slate-200 bg-white px-5 py-4 sm:px-8"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4"><div class="min-w-0"><p class="truncate text-xs font-semibold uppercase tracking-[0.16em] text-violet-700">{{ $organization?->name ?? 'No active organization' }}</p><h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950">@yield('heading', 'Overview')</h1></div><div class="flex items-center gap-3"><a href="{{ route('profile.edit') }}" class="hidden rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-violet-200 hover:text-violet-700 sm:inline">Profile</a><form method="POST" action="{{ route('logout') }}">@csrf<button class="rounded-lg bg-[#2b164f] px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-800">Sign out</button></form></div></div></header><main class="mx-auto max-w-7xl px-5 py-7 sm:px-8">@if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif @yield('content')</main></div>
     </div>
+    @stack('scripts')
 </body>
 </html>

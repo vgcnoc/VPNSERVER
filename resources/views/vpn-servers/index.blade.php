@@ -5,6 +5,7 @@
 
 @section('content')
     <p class="max-w-3xl text-sm leading-6 text-slate-600">Register dedicated RouterOS 7 VPN gateways here. Credentials are encrypted at rest and never shown after saving. WireGuard uses the default server; L2TP/IPsec, SSTP, and OpenVPN use an active server of the matching protocol.</p>
+    <div class="mt-5 max-w-4xl rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><strong>Setup flow:</strong> 1) save a server below, 2) generate and paste its CHR script, 3) test the API connection, then 4) enable it. Customers select their connection type on <a class="font-semibold underline" href="{{ route('vpn.index') }}">VPN Infrastructure</a> after their invoice has been paid.</div>
 
     @if($errors->any())
         <div role="alert" class="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
@@ -14,14 +15,14 @@
         @csrf
         <div class="md:col-span-2"><h2 class="text-lg font-bold text-slate-900">Add RouterOS gateway</h2><p class="mt-1 text-xs text-slate-500">Use a restricted HTTPS REST management endpoint. Never expose the router REST API publicly.</p></div>
         <label class="text-sm font-medium text-slate-700">Server name<input required name="name" value="{{ old('name') }}" maxlength="120" placeholder="Jakarta CHR 01" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
-        <label class="text-sm font-medium text-slate-700">VPN protocol<select required name="protocol" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><option value="wireguard" @selected(old('protocol', 'wireguard') === 'wireguard')>WireGuard</option><option value="l2tp_ipsec" @selected(old('protocol') === 'l2tp_ipsec')>L2TP/IPsec</option><option value="sstp" @selected(old('protocol') === 'sstp')>SSTP</option><option value="openvpn" @selected(old('protocol') === 'openvpn')>OpenVPN (TCP)</option></select></label>
+        <label class="text-sm font-medium text-slate-700">VPN protocol<select required name="protocol" data-server-protocol class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><option value="wireguard" @selected(old('protocol', 'wireguard') === 'wireguard')>WireGuard</option><option value="l2tp_ipsec" @selected(old('protocol') === 'l2tp_ipsec')>L2TP/IPsec</option><option value="sstp" @selected(old('protocol') === 'sstp')>SSTP</option><option value="openvpn" @selected(old('protocol') === 'openvpn')>OpenVPN (TCP)</option></select></label>
         <label class="text-sm font-medium text-slate-700">HTTPS endpoint<input required name="endpoint" value="{{ old('endpoint') }}" type="url" placeholder="https://chr-01.example.net" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">Client VPN endpoint<input required name="client_endpoint" value="{{ old('client_endpoint') }}" placeholder="vpn.example.net" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Public hostname or IP used by customer VPN apps; not the RouterOS REST URL.</span></label>
         <label class="text-sm font-medium text-slate-700">API username<input required name="username" value="{{ old('username') }}" autocomplete="off" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">API password<input required name="password" type="password" autocomplete="new-password" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
-        <label class="text-sm font-medium text-slate-700">L2TP/IPsec pre-shared key<input name="protocol_secret" type="password" autocomplete="new-password" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Required for L2TP/IPsec only.</span></label>
-        <label class="text-sm font-medium text-slate-700">CHR certificate name<input name="certificate_name" value="{{ old('certificate_name') }}" placeholder="server-cert" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Required for SSTP and OpenVPN; import it to CHR first.</span></label>
-        <label class="text-sm font-medium text-slate-700">WireGuard interface<input required name="wireguard_interface" value="{{ old('wireguard_interface', 'wg-vpnrent') }}" maxlength="64" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Used by WireGuard only.</span></label>
+        <label data-l2tp-option class="text-sm font-medium text-slate-700">L2TP/IPsec pre-shared key<input name="protocol_secret" type="password" autocomplete="new-password" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Required for L2TP/IPsec only.</span></label>
+        <label data-certificate-option class="text-sm font-medium text-slate-700">CHR certificate name<input name="certificate_name" value="{{ old('certificate_name') }}" placeholder="server-cert" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Required for SSTP and OpenVPN; import it to CHR first.</span></label>
+        <label data-wireguard-option class="text-sm font-medium text-slate-700">WireGuard interface<input required name="wireguard_interface" value="{{ old('wireguard_interface', 'wg-vpnrent') }}" maxlength="64" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Used by WireGuard only.</span></label>
         <div class="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-xs leading-5 text-violet-800">WireGuard generates its key pair when the CHR script runs. For L2TP/IPsec, SSTP, and OpenVPN the script prepares the RouterOS service and address pool; the certificate must already exist on CHR for SSTP/OpenVPN.</div>
         <label class="text-sm font-medium text-slate-700">Dedicated pool prefix<input required name="pool_prefix" value="{{ old('pool_prefix') }}" placeholder="10.80.0" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">Peer capacity<input required name="capacity" type="number" min="1" max="253" value="{{ old('capacity', 100) }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
@@ -45,3 +46,19 @@
         @endforelse
     </section>
 @endsection
+@push('scripts')
+<script>
+const serverProtocol = document.querySelector('[data-server-protocol]');
+if (serverProtocol) {
+    const wireguard = document.querySelector('[data-wireguard-option]');
+    const l2tp = document.querySelector('[data-l2tp-option]');
+    const certificate = document.querySelector('[data-certificate-option]');
+    const updateServerProtocol = () => {
+        wireguard.hidden = serverProtocol.value !== 'wireguard';
+        l2tp.hidden = serverProtocol.value !== 'l2tp_ipsec';
+        certificate.hidden = !['sstp', 'openvpn'].includes(serverProtocol.value);
+    };
+    serverProtocol.addEventListener('change', updateServerProtocol); updateServerProtocol();
+}
+</script>
+@endpush
