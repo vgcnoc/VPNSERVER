@@ -79,6 +79,20 @@ class RouterOsService
         if (! isset($resource[0]['version']) || ! str_starts_with($resource[0]['version'], '7.')) {
             throw new \RuntimeException('RouterOS 7 is required.');
         }
+        if ($server && $server->protocol !== 'wireguard') {
+            $path = match ($server->protocol) {
+                'l2tp_ipsec' => 'interface/l2tp-server/server',
+                'sstp' => 'interface/sstp-server/server',
+                'openvpn' => 'interface/ovpn-server/server',
+                default => throw new \RuntimeException('Unsupported VPN protocol.'),
+            };
+            $service = $this->call($server, 'GET', $path, ['.proplist' => 'name,disabled']);
+            if (count($service) < 1 || ($service[0]['disabled'] ?? '') !== 'false') {
+                throw new \RuntimeException('The approved VPN service is not enabled.');
+            }
+
+            return $resource[0];
+        }
         $interfaces = $this->call($server, 'GET', 'interface/wireguard', ['name' => $settings['interface'], '.proplist' => 'name,public-key,running,disabled']);
         if (count($interfaces) !== 1 || ($interfaces[0]['running'] ?? '') !== 'true'
             || ($interfaces[0]['disabled'] ?? '') !== 'false'

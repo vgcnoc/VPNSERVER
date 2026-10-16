@@ -2,7 +2,7 @@
 
 The initial billing, Midtrans sandbox, reseller ledger and CHR provisioning workflows are now implemented. See [integration setup and current limitations](docs/INTEGRATIONS.md). They have not yet been tested with a real Midtrans account or CHR gateway. This is not a production-complete release.
 
-VPNRENT Enterprise is a Laravel SaaS foundation for an authorized, multi-tenant VPN rental operation. This repository deliberately does **not** claim a WireGuard, payment-gateway, MikroTik, or VPS integration until that component is separately implemented and tested against real infrastructure.
+VPNRENT Enterprise is a Laravel SaaS foundation for an authorized, multi-tenant VPN rental operation. Billing, Midtrans sandbox, CHR WireGuard provisioning, and monitored RouterOS server bootstrap scripts for WireGuard, L2TP/IPsec, SSTP, and OpenVPN (TCP) are implemented. Real payment and tunnel acceptance testing remain required before production use.
 
 ## Phase 1 — implemented scope (acceptance still pending)
 
@@ -84,7 +84,7 @@ MariaDB 10.4.32 was started with a localhost binding and a new `vpnrent_developm
 
 1. **Foundation** — current phase.
 2. Commercial core: plans, orders, invoices, subscriptions, payment adapter contracts.
-3. VPN engine: verified server inventory, IPAM, WireGuard provisioning jobs, configuration delivery.
+3. VPN engine: verified server inventory, IPAM, WireGuard provisioning jobs, configuration delivery, and monitored CHR scripts for WireGuard/L2TP-IPsec/SSTP/OpenVPN.
 4. Automation: renewal, expiration, suspension, retry, notifications.
 5. MikroTik / cluster: authorized router integration, gateway monitoring, failover design.
 6. Reseller: accounts, balances, commissions, scoped customer access.

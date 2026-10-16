@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class VpnServerController extends Controller
@@ -23,7 +24,9 @@ class VpnServerController extends Controller
     public function store(Request $request, AuditService $audit): RedirectResponse
     {
         $data = $this->validated($request);
-        [$privateKey, $publicKey] = $this->wireGuardKeypair();
+        [$privateKey, $publicKey] = $data['protocol'] === 'wireguard'
+            ? $this->wireGuardKeypair()
+            : [null, null];
 
         $server = DB::transaction(function () use ($data, $request, $audit, $publicKey) {
             $server = VpnServer::query()->create($data + [
@@ -57,6 +60,7 @@ class VpnServerController extends Controller
 
     public function regenerateScript(VpnServer $server, Request $request, AuditService $audit): RedirectResponse
     {
+        abort_unless($server->protocol === 'wireguard', 422, 'Only WireGuard servers use key regeneration.');
         abort_if(DB::table('vpn_peers')->where('vpn_server_id', $server->id)->exists(), 409, 'Bootstrap keys cannot be rotated while the server has allocated peers.');
         [$privateKey, $publicKey] = $this->wireGuardKeypair();
         abort_unless($privateKey && $publicKey, 503, 'This PHP installation cannot generate a WireGuard key pair. Create the interface with the script and submit its public key instead.');
@@ -69,6 +73,7 @@ class VpnServerController extends Controller
 
     public function setPublicKey(VpnServer $server, Request $request, AuditService $audit): RedirectResponse
     {
+        abort_unless($server->protocol === 'wireguard', 422, 'Only WireGuard servers have a WireGuard public key.');
         $data = $request->validate(['wireguard_public_key' => ['required', 'string', 'size:44']]);
         $key = base64_decode($data['wireguard_public_key'], true);
         abort_unless($key !== false && strlen($key) === 32 && base64_encode($key) === $data['wireguard_public_key'], 422, 'A canonical WireGuard public key is required.');
@@ -80,6 +85,7 @@ class VpnServerController extends Controller
 
     public function makeDefault(VpnServer $server, Request $request, AuditService $audit): RedirectResponse
     {
+        abort_unless($server->protocol === 'wireguard', 422, 'Automatic subscription provisioning currently requires a WireGuard server.');
         abort_unless($server->status === 'active', 422, 'Only active servers can be the default.');
         abort_unless($server->wireguard_public_key, 422, 'Save the WireGuard public key before selecting a default server.');
         DB::transaction(function () use ($server, $request, $audit) {
@@ -94,7 +100,7 @@ class VpnServerController extends Controller
     public function toggle(VpnServer $server, Request $request, AuditService $audit): RedirectResponse
     {
         $nextStatus = $server->status === 'active' ? 'disabled' : 'active';
-        abort_if($nextStatus === 'active' && ! $server->wireguard_public_key, 422, 'Generate the CHR script and save the WireGuard public key before activating this server.');
+        abort_if($nextStatus === 'active' && $server->protocol === 'wireguard' && ! $server->wireguard_public_key, 422, 'Generate the CHR script and save the WireGuard public key before activating this server.');
         DB::transaction(function () use ($server, $nextStatus, $request, $audit) {
             $server->update(['status' => $nextStatus, 'is_default' => $nextStatus === 'disabled' ? false : $server->is_default]);
             if ($nextStatus === 'disabled' && ! VpnServer::query()->where('status', 'active')->where('id', '!=', $server->id)->exists()) {
@@ -109,16 +115,16 @@ class VpnServerController extends Controller
 
     public function check(VpnServer $server, Request $request, RouterOsService $router, AuditService $audit): RedirectResponse
     {
-        abort_unless($server->wireguard_public_key, 422, 'Save the WireGuard public key before testing this server.');
+        abort_if($server->protocol === 'wireguard' && ! $server->wireguard_public_key, 422, 'Save the WireGuard public key before testing this server.');
         try {
             $router->health($server);
             $server->update(['health_status' => 'healthy', 'last_checked_at' => now(), 'last_error' => null]);
             $audit->record('vpn.server_health_checked', $request->user(), $server, ['result' => 'healthy']);
-            return back()->with('status', $server->name.' passed the RouterOS and WireGuard health check.');
+            return back()->with('status', $server->name.' passed the RouterOS health check.');
         } catch (\Throwable) {
-            $server->update(['health_status' => 'unreachable', 'last_checked_at' => now(), 'last_error' => 'Connection or WireGuard verification failed.']);
+            $server->update(['health_status' => 'unreachable', 'last_checked_at' => now(), 'last_error' => 'Connection or protocol service verification failed.']);
             $audit->record('vpn.server_health_checked', $request->user(), $server, ['result' => 'unreachable']);
-            return back()->withErrors(['server' => 'Connection test failed. Confirm HTTPS REST access, credentials, and WireGuard settings.']);
+            return back()->withErrors(['server' => 'Connection test failed. Confirm HTTPS REST access, credentials, and the protocol service settings.']);
         }
     }
 
@@ -127,15 +133,20 @@ class VpnServerController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120', 'unique:vpn_servers,name'],
+            'protocol' => ['required', Rule::in(['wireguard', 'l2tp_ipsec', 'sstp', 'openvpn'])],
             'endpoint' => ['required', 'url:https', 'max:2048', 'unique:vpn_servers,endpoint'],
             'username' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string', 'max:4096'],
+            'protocol_secret' => ['nullable', 'string', 'max:4096'],
+            'certificate_name' => ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9_.-]+$/D'],
             'wireguard_interface' => ['required', 'string', 'regex:/^[A-Za-z0-9_.-]{1,64}$/D'],
             'pool_prefix' => ['required', 'string', 'regex:/^\d{1,3}\.\d{1,3}\.\d{1,3}$/D'],
             'capacity' => ['required', 'integer', 'between:1,253'],
         ]);
 
         abort_unless(filter_var($data['pool_prefix'].'.1', FILTER_VALIDATE_IP, FILTER_FLAG_IPV4), 422, 'A valid IPv4 /24 pool prefix is required.');
+        abort_if($data['protocol'] === 'l2tp_ipsec' && ! filled($data['protocol_secret'] ?? null), 422, 'An IPsec pre-shared key is required for L2TP/IPsec.');
+        abort_if(in_array($data['protocol'], ['sstp', 'openvpn'], true) && ! filled($data['certificate_name'] ?? null), 422, 'A RouterOS certificate name is required for SSTP and OpenVPN.');
         return $data;
     }
 
@@ -151,6 +162,16 @@ class VpnServerController extends Controller
     }
 
     private function bootstrapScript(VpnServer $server, ?string $privateKey): string
+    {
+        return match ($server->protocol) {
+            'l2tp_ipsec' => $this->pppBootstrapScript($server, 'l2tp_ipsec'),
+            'sstp' => $this->pppBootstrapScript($server, 'sstp'),
+            'openvpn' => $this->pppBootstrapScript($server, 'openvpn'),
+            default => $this->wireGuardBootstrapScript($server, $privateKey),
+        };
+    }
+
+    private function wireGuardBootstrapScript(VpnServer $server, ?string $privateKey): string
     {
         $quote = static fn (string $value): string => str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
         $interface = $quote($server->wireguard_interface);
@@ -176,6 +197,39 @@ class VpnServerController extends Controller
 :put ("VPNRENT public key: " . [/interface/wireguard get [find where name=\$wgName] public-key])
 # Next: securely enable HTTPS REST with a trusted certificate and restricted firewall,
 # then return to VPNRENT and use Test connection before setting this server active/default.
+ROS;
+    }
+
+    private function pppBootstrapScript(VpnServer $server, string $protocol): string
+    {
+        $quote = static fn (string $value): string => str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+        $slug = substr(str_replace('-', '', $server->id), 0, 8);
+        $pool = 'vpnrent-'.$protocol.'-'.$slug;
+        $profile = 'vpnrent-'.$protocol.'-'.$slug;
+        $address = $server->pool_prefix.'.1';
+        $name = $quote($server->name);
+        $serverSetup = match ($protocol) {
+            'l2tp_ipsec' => "/interface l2tp-server server set enabled=yes use-ipsec=required ipsec-secret=\"{$quote((string) $server->protocol_secret)}\" default-profile=\$profileName authentication=mschap2",
+            'sstp' => "/interface sstp-server server set enabled=yes default-profile=\$profileName certificate=\"{$quote((string) $server->certificate_name)}\" authentication=mschap2 tls-version=only-1.2",
+            default => ":if ([:len [/interface/ovpn-server/server find where name=\"vpnrent-{$slug}\"]] = 0) do={ /interface/ovpn-server/server add name=\"vpnrent-{$slug}\" disabled=no protocol=tcp port=1194 certificate=\"{$quote((string) $server->certificate_name)}\" auth=sha256 cipher=aes256-gcm require-client-certificate=no default-profile=\$profileName }",
+        };
+
+        return <<<ROS
+# VPNRENT {$protocol} bootstrap for {$name}
+# Paste once on RouterOS 7. Firewall, NAT, routes, and certificates are intentionally not changed.
+:local poolName "{$pool}"
+:local profileName "{$profile}"
+:local gatewayAddress "{$address}"
+:local poolRange "{$server->pool_prefix}.2-{$server->pool_prefix}.254"
+
+:if ([:len [/ip/pool find where name=\$poolName]] = 0) do={
+    /ip/pool add name=\$poolName ranges=\$poolRange comment="VPNRENT {$protocol} pool"
+}
+:if ([:len [/ppp/profile find where name=\$profileName]] = 0) do={
+    /ppp/profile add name=\$profileName local-address=\$gatewayAddress remote-address=\$poolName use-encryption=required only-one=yes
+}
+{$serverSetup}
+:put "VPNRENT {$protocol} server enabled. Add customer PPP secrets through the approved provisioning workflow."
 ROS;
     }
 }

@@ -24,12 +24,14 @@ Reference: https://docs.midtrans.com/docs/snap-snap-integration-guide and https:
 
 Super Admins can now register multiple gateways from **VPN Servers** in the console. The saved password is encrypted at rest and never rendered back to the browser. Add one server, use **Test connection**, then select an active server as **Default**; new provisioning requests use that server and persist its identity with the peer. Disabling a default server intentionally stops new allocations until an active default is selected again. Existing peers remain attached to their original server.
 
-Each server row also has **Generate CHR script**. It creates an idempotency-safe RouterOS 7 bootstrap script for the WireGuard interface and its `.1/24` gateway address; the script intentionally does not alter firewall, NAT, routes, certificates, or REST exposure. On PHP installations without secure Curve25519 key generation, RouterOS generates the key pair locally and prints the public key. Paste that public key back into the form before testing, activating, and selecting the server as default. The private key remains on the CHR.
+Each server row also has **Generate CHR script**. Choose WireGuard, L2TP/IPsec, SSTP, or OpenVPN (TCP) when adding a server. The script creates its dedicated RouterOS 7 service and `.1/24` address pool; it intentionally does not alter firewall, NAT, routes, certificates, or REST exposure. L2TP/IPsec requires a pre-shared key, while SSTP and OpenVPN require the name of a certificate already installed on the CHR. The L2TP/IPsec script contains its pre-shared key and must be handled as a secret.
 
-Direct CHR WireGuard management is implemented; Linux WireGuard, failover and arbitrary RouterOS scripting are not implemented. Before enabling gateway writes:
+WireGuard remains the only protocol with automatic per-subscription customer provisioning in this release. On PHP installations without secure Curve25519 key generation, RouterOS generates the WireGuard key pair locally and prints the public key. Paste that public key back into the form before testing, activating, and selecting the WireGuard server as default. The private key remains on the CHR. L2TP/IPsec, SSTP, and OpenVPN server scripts can be monitored and activated, but their per-customer PPP account lifecycle is not yet automated.
+
+Direct CHR WireGuard management is implemented; CHR bootstrap/health checks are available for L2TP/IPsec, SSTP and OpenVPN. Linux WireGuard, failover and arbitrary RouterOS scripting are not implemented. Before enabling gateway writes:
 
 1. Confirm this is an authorized test gateway. Take and retain a CHR backup independently before changing network settings.
-2. Preconfigure a dedicated WireGuard interface, an exclusive /24 VPN subnet, and its gateway at `.1`. Set restrictive firewall and routing rules for the intended remote-management destinations. The application does not create firewall/NAT rules or an internet exit gateway.
+2. Reserve an exclusive /24 VPN subnet and its gateway at `.1` for every server. Set restrictive firewall and routing rules for the intended remote-management destinations. For SSTP/OpenVPN, install and validate the server certificate on the CHR before generating its script. The application does not create firewall/NAT rules, certificates, or an internet exit gateway.
 3. Make RouterOS HTTPS REST reachable over a restricted management path. Trust its CA/certificate on the application host; TLS verification is always enabled. Do not expose management ports broadly.
 4. Configure `ROUTEROS_URL` as the HTTPS origin (without `/rest`), `ROUTEROS_USERNAME`, `ROUTEROS_PASSWORD`, `ROUTEROS_WG_INTERFACE`, `ROUTEROS_WG_PUBLIC_KEY`, `ROUTEROS_POOL_PREFIX` (e.g. `10.80.0` for an exclusively assigned `10.80.0.0/24`), and `ROUTEROS_CAPACITY`. Credentials stay in the ignored environment, not browser inputs.
 5. Only after review set `ROUTEROS_ENABLED=true`. These settings authorize the worker to create peers and the scheduler to disable expired peers on this gateway. Do not point this sandbox billing installation at a production gateway.
@@ -38,7 +40,7 @@ The pool allocator reserves `.2` through `.254` and serializes allocations with 
 
 Client keys are created on the client device/CHR and only the public key is submitted. Private-key generation, configuration downloads, QR codes and client RouterOS setup scripts are not provided by this release. Configure the client interface and routing manually using the allocated IP and approved gateway endpoint. A peer handshake does not prove application/network reachability.
 
-Reference: https://help.mikrotik.com/docs/spaces/ROS/pages/47579162/REST+API and https://help.mikrotik.com/docs/spaces/ROS/pages/69664792/WireGuard
+Reference: https://help.mikrotik.com/docs/spaces/ROS/pages/47579162/REST+API, https://help.mikrotik.com/docs/spaces/ROS/pages/69664792/WireGuard, https://help.mikrotik.com/docs/spaces/ROS/pages/11993097/IPsec, https://help.mikrotik.com/docs/spaces/ROS/pages/2031645/SSTP, and https://help.mikrotik.com/docs/spaces/ROS/pages/2031655/OpenVPN
 
 ## Workers, scheduler and deployment
 

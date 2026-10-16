@@ -22,7 +22,7 @@ class CheckVpnServers extends Command
                 $this->info($server->name.': healthy');
             } catch (\Throwable) {
                 $failures++;
-                $server->update(['health_status' => 'unreachable', 'last_checked_at' => now(), 'last_error' => 'Connection or WireGuard verification failed.']);
+                $server->update(['health_status' => 'unreachable', 'last_checked_at' => now(), 'last_error' => 'Connection or VPN service verification failed.']);
                 $this->error($server->name.': unreachable or misconfigured');
             }
         });

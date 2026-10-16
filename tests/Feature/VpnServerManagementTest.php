@@ -53,6 +53,27 @@ class VpnServerManagementTest extends TestCase
             ->get(route('vpn-servers.index'))->assertForbidden();
     }
 
+    public function test_super_admin_can_generate_an_l2tp_ipsec_bootstrap_script(): void
+    {
+        [$user, $organization] = $this->platformAdmin();
+        $payload = array_merge($this->payload('router-api-password'), [
+            'protocol' => 'l2tp_ipsec',
+            'protocol_secret' => 'l2tp-ipsec-shared-secret',
+            'name' => 'L2TP Jakarta',
+            'endpoint' => 'https://l2tp.example.test',
+        ]);
+
+        $this->actingAs($user)->withSession(['active_organization_id' => $organization->id])
+            ->post(route('vpn-servers.store'), $payload)->assertRedirect();
+
+        $server = VpnServer::query()->firstOrFail();
+        $this->actingAs($user)->withSession(['active_organization_id' => $organization->id])
+            ->get(route('vpn-servers.script', $server))
+            ->assertOk()
+            ->assertSee('/interface l2tp-server server set', false)
+            ->assertSee('l2tp-ipsec-shared-secret', false);
+    }
+
     public function test_server_health_command_records_a_successful_check(): void
     {
         $server = VpnServer::query()->create($this->payload('encrypted-at-rest') + [
@@ -89,6 +110,7 @@ class VpnServerManagementTest extends TestCase
     {
         return [
             'name' => 'Jakarta CHR 01',
+            'protocol' => 'wireguard',
             'endpoint' => 'https://chr-01.example.test',
             'username' => 'vpnrent-api',
             'password' => $password,

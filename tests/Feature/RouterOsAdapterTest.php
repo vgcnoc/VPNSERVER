@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\VpnServer;
 use App\Services\RouterOsService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -52,5 +53,30 @@ class RouterOsAdapterTest extends TestCase
             $this->assertStringNotContainsString('do-not-log', $e->getMessage());
             $this->assertNull($e->getPrevious());
         }
+    }
+
+    public function test_l2tp_health_check_verifies_the_routeros_service_is_enabled(): void
+    {
+        $server = VpnServer::make([
+            'name' => 'L2TP test gateway',
+            'protocol' => 'l2tp_ipsec',
+            'endpoint' => 'https://chr.test',
+            'username' => 'svc',
+            'password' => 'test-secret',
+            'protocol_secret' => 'ipsec-secret',
+            'wireguard_interface' => 'wg-unused',
+            'pool_prefix' => '10.81.0',
+            'capacity' => 253,
+            'status' => 'active',
+        ]);
+        $server->id = 'l2tp-test-server';
+        Http::preventStrayRequests();
+        Http::fake([
+            'chr.test/rest/system/resource*' => Http::response([['version' => '7.20']]),
+            'chr.test/rest/interface/l2tp-server/server*' => Http::response([['disabled' => 'false']]),
+        ]);
+
+        $this->assertSame('7.20', (new RouterOsService())->health($server)['version']);
+        Http::assertSentCount(2);
     }
 }
