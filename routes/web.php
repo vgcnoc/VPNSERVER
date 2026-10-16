@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AutomationController;
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -21,8 +23,10 @@ Route::middleware(['auth', 'tenant'])->group(function () {
 require __DIR__.'/auth.php';
 
 Route::middleware(['auth', 'verified', 'tenant', 'throttle:60,1'])->group(function () {
+    Route::get('/organizations', [OrganizationController::class, 'index'])->name('organizations.index');
     Route::get('/billing', [\App\Http\Controllers\BillingController::class, 'index'])->name('billing.index');
     Route::get('/vpn', [\App\Http\Controllers\VpnController::class, 'index'])->name('vpn.index');
+    Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
     Route::post('/vpn/{subscription}/provision', [\App\Http\Controllers\VpnController::class, 'provision'])->name('vpn.provision');
     Route::post('/vpn/peers/{peer}/retry', [\App\Http\Controllers\VpnController::class, 'retry'])->name('vpn.retry');
     Route::get('/resellers', [\App\Http\Controllers\ResellerController::class, 'index'])->name('resellers.index');
