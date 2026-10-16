@@ -12,6 +12,7 @@ class VpnServer extends Model
     protected $fillable = [
         'name', 'endpoint', 'username', 'password', 'wireguard_interface',
         'wireguard_public_key', 'pool_prefix', 'capacity', 'status', 'is_default',
+        'health_status', 'last_checked_at', 'last_error',
     ];
 
     protected $hidden = ['password'];

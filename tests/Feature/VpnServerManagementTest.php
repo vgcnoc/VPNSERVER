@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\VpnServer;
+use App\Services\RouterOsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -43,6 +44,24 @@ class VpnServerManagementTest extends TestCase
 
         $this->actingAs($user)->withSession(['active_organization_id' => $organization->id])
             ->get(route('vpn-servers.index'))->assertForbidden();
+    }
+
+    public function test_server_health_command_records_a_successful_check(): void
+    {
+        $server = VpnServer::query()->create($this->payload('encrypted-at-rest') + [
+            'id' => (string) Str::uuid(),
+            'status' => 'active',
+            'health_status' => 'unknown',
+        ]);
+        $this->mock(RouterOsService::class)
+            ->shouldReceive('health')
+            ->once()
+            ->withArgs(fn (VpnServer $candidate) => $candidate->id === $server->id)
+            ->andReturn(['version' => '7.20']);
+
+        $this->artisan('vpn:check-servers')->assertSuccessful();
+
+        $this->assertDatabaseHas('vpn_servers', ['id' => $server->id, 'health_status' => 'healthy']);
     }
 
     /** @return array{0: User, 1: Organization} */

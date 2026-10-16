@@ -47,6 +47,8 @@ php artisan queue:work --tries=3 --timeout=80
 php artisan schedule:work
 ```
 
+The scheduler runs `vpn:reconcile` every minute for existing peers and `vpn:check-servers` every five minutes to refresh the server health shown in **VPN Servers**. The health check only reads RouterOS state; it never creates, enables, or disables peers.
+
 Production service installation has not been performed. On a future reviewed release, run the queue worker under Supervisor/systemd and scheduler with `* * * * * php /path/to/artisan schedule:run`. Keep queue retry-after greater than worker timeout. Provisioning holds a primary gateway row lock during remote operations, so throughput is intentionally limited. Queue dispatch after commit can be recovered by the reconciler for `queued` peers. Failed jobs need a reviewed retry; ambiguous upstream state retains the address and identity.
 
 Apply new migrations with `php artisan migrate` after a database backup. Do not use `migrate:fresh` on customer data. Build assets with `npm ci` then `npm run build`; use the `public` directory as web root. Keep `.env`, database files, credentials and vendor/node_modules out of Git. No VPS changes or new GitHub push were made as part of this integration implementation.
