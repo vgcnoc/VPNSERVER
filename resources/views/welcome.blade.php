@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VPNRENT Enterprise</title>
+    <link rel="preconnect" href="https://fonts.bunny.net"><link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <header class="mx-auto flex max-w-7xl items-center justify-between px-6 py-6"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-[#2b164f] text-lg font-bold text-white">V</span><span><b class="block leading-4">VPNRENT</b><small class="text-[10px] font-bold tracking-[0.18em] text-violet-700">ENTERPRISE</small></span></div><nav class="flex items-center gap-3 text-sm font-semibold">@auth <a href="{{ route('dashboard') }}" class="rounded-lg bg-[#2b164f] px-4 py-2 text-white">Open console</a>@else <a href="{{ route('login') }}" class="px-3 py-2 text-slate-600">Sign in</a><a href="{{ route('register') }}" class="rounded-lg bg-[#2b164f] px-4 py-2 text-white">Create account</a> @endauth</nav></header>
+    <main class="mx-auto max-w-7xl px-6 py-16 lg:py-24"><div class="max-w-3xl"><p class="text-xs font-bold uppercase tracking-[0.2em] text-violet-700">Managed access infrastructure</p><h1 class="mt-5 text-4xl font-bold tracking-tight text-[#1b1037] sm:text-6xl">A secure foundation for VPN service operations.</h1><p class="mt-6 max-w-2xl text-lg leading-8 text-slate-600">VPNRENT Enterprise is being built incrementally with verified data, tenant isolation, and backend authorization at its core.</p></div><div class="mt-12 grid max-w-4xl gap-4 sm:grid-cols-3"><div class="rounded-2xl border border-slate-200 bg-white p-5"><b>Identity</b><p class="mt-2 text-sm text-slate-500">Secure registration, verification, sessions, and password protection.</p></div><div class="rounded-2xl border border-slate-200 bg-white p-5"><b>Access control</b><p class="mt-2 text-sm text-slate-500">Role and permission checks enforced by the backend.</p></div><div class="rounded-2xl border border-slate-200 bg-white p-5"><b>Tenant isolation</b><p class="mt-2 text-sm text-slate-500">Organization context is validated on every protected request.</p></div></div></main>
+</body></html>
