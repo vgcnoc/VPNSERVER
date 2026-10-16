@@ -15,12 +15,12 @@ class OrganizationController extends Controller
 
         if ($isPlatformAdmin) {
             $organizations = Organization::query()
-                ->withCount(['members' => fn ($q) => $q->wherePivot('status', 'active')])
+                ->withCount(['members' => fn ($q) => $q->where('organization_user.status', 'active')])
                 ->orderBy('name')
                 ->paginate(25);
         } else {
             $organizations = $user->organizations()
-                ->withCount(['members' => fn ($q) => $q->wherePivot('status', 'active')])
+                ->withCount(['members' => fn ($q) => $q->where('organization_user.status', 'active')])
                 ->orderByPivot('status')
                 ->orderBy('name')
                 ->paginate(25);

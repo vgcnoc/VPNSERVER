@@ -69,6 +69,20 @@ class FoundationAccessTest extends TestCase
             ->assertSee('Foundation status');
     }
 
+    public function test_member_can_open_organizations_and_sees_active_member_count(): void
+    {
+        [$user, $organization] = $this->createMember('customer');
+        $organization->members()->attach(User::factory()->create()->id, ['status' => 'suspended']);
+
+        $this->actingAs($user)
+            ->withSession(['active_organization_id' => $organization->getKey()])
+            ->get(route('organizations.index'))
+            ->assertOk()
+            ->assertSee('Organizations')
+            ->assertSee('Currently active')
+            ->assertSee('1');
+    }
+
     public function test_user_cannot_switch_to_an_organization_they_do_not_belong_to(): void
     {
         [$user] = $this->createMember('customer');
