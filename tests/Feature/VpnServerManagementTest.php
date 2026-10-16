@@ -112,6 +112,7 @@ class VpnServerManagementTest extends TestCase
             'name' => 'Jakarta CHR 01',
             'protocol' => 'wireguard',
             'endpoint' => 'https://chr-01.example.test',
+            'client_endpoint' => 'vpn-01.example.test',
             'username' => 'vpnrent-api',
             'password' => $password,
             'wireguard_interface' => 'wg-vpnrent',

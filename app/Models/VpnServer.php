@@ -10,7 +10,7 @@ class VpnServer extends Model
     use HasUuids;
 
     protected $fillable = [
-        'name', 'protocol', 'endpoint', 'username', 'password', 'protocol_secret', 'certificate_name', 'wireguard_interface',
+        'name', 'protocol', 'endpoint', 'client_endpoint', 'username', 'password', 'protocol_secret', 'certificate_name', 'wireguard_interface',
         'wireguard_public_key', 'pool_prefix', 'capacity', 'status', 'is_default',
         'health_status', 'last_checked_at', 'last_error',
     ];

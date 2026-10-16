@@ -135,6 +135,7 @@ class VpnServerController extends Controller
             'name' => ['required', 'string', 'max:120', 'unique:vpn_servers,name'],
             'protocol' => ['required', Rule::in(['wireguard', 'l2tp_ipsec', 'sstp', 'openvpn'])],
             'endpoint' => ['required', 'url:https', 'max:2048', 'unique:vpn_servers,endpoint'],
+            'client_endpoint' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/D'],
             'username' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string', 'max:4096'],
             'protocol_secret' => ['nullable', 'string', 'max:4096'],

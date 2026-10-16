@@ -6,17 +6,22 @@ use App\Jobs\ProvisionPeer;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\VpnServer;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class VpnProvisioningService
 {
-    public function request(User $user, Organization $tenant, string $subscriptionId, string $publicKey): string
+    public function request(User $user, Organization $tenant, string $subscriptionId, string $protocol, ?string $publicKey = null): string
     {
         abort_unless($user->belongsToOrganization($tenant), 403);
-        $decoded = base64_decode($publicKey, true);
-        abort_unless($decoded !== false && strlen($decoded) === 32 && base64_encode($decoded) === $publicKey && $decoded !== str_repeat("\0", 32), 422, 'A canonical WireGuard public key is required.');
-        return DB::transaction(function () use ($user, $tenant, $subscriptionId, $publicKey) {
+        abort_unless(in_array($protocol, ['wireguard', 'l2tp_ipsec', 'sstp', 'openvpn'], true), 422, 'Choose a supported VPN protocol.');
+        if ($protocol === 'wireguard') {
+            $decoded = base64_decode((string) $publicKey, true);
+            abort_unless($decoded !== false && strlen($decoded) === 32 && base64_encode($decoded) === $publicKey && $decoded !== str_repeat("\0", 32), 422, 'A canonical WireGuard public key is required.');
+        }
+
+        return DB::transaction(function () use ($user, $tenant, $subscriptionId, $protocol, $publicKey) {
             DB::table('gateway_locks')->where('id', 'primary')->lockForUpdate()->first();
             $subscription = DB::table('subscriptions')->where('organization_id', $tenant->id)->where('id', $subscriptionId)->lockForUpdate()->first();
             abort_unless($subscription, 404);
@@ -24,13 +29,21 @@ class VpnProvisioningService
             abort_unless((int) $order->customer_id === (int) $user->id, 403);
             $existing = DB::table('vpn_peers')->where('subscription_id', $subscriptionId)->first();
             if ($existing) {
-                abort_unless($existing->public_key === $publicKey, 409);
+                abort_unless($existing->protocol === $protocol && ($protocol !== 'wireguard' || $existing->public_key === $publicKey), 409, 'This subscription already has a different VPN connection.');
                 return $existing->id;
             }
             abort_unless($subscription->status === 'paid', 409, 'Verified payment is required.');
-            abort_if(DB::table('vpn_peers')->where('public_key', $publicKey)->exists(), 409, 'Public key is already allocated.');
-            $server = VpnServer::query()->where('status', 'active')->where('is_default', true)->first();
-            abort_if(VpnServer::query()->where('status', 'active')->exists() && ! $server, 503, 'Choose an active default VPN server before provisioning.');
+            if ($protocol === 'wireguard') {
+                abort_if(DB::table('vpn_peers')->where('public_key', $publicKey)->exists(), 409, 'Public key is already allocated.');
+            }
+            $server = $protocol === 'wireguard'
+                ? VpnServer::query()->where('status', 'active')->where('protocol', 'wireguard')->where('is_default', true)->first()
+                : VpnServer::query()->where('status', 'active')->where('protocol', $protocol)->orderByDesc('health_status')->orderBy('name')->first();
+            if ($protocol === 'wireguard') {
+                abort_if(VpnServer::query()->where('status', 'active')->where('protocol', 'wireguard')->exists() && ! $server, 503, 'Choose an active default WireGuard server before provisioning.');
+            } else {
+                abort_unless($server, 503, 'No active server is available for the selected protocol.');
+            }
             $router = app(RouterOsService::class);
             $router->health($server);
             $prefix = $server?->pool_prefix ?? config('routeros.pool_prefix');
@@ -47,12 +60,15 @@ class VpnProvisioningService
             }
             abort_unless($address, 409, 'IP pool exhausted.');
             $id = (string) Str::uuid();
-            // Identity generation is local and must not depend on the remote client instance.
+            $username = $protocol === 'wireguard' ? null : 'vpn'.substr(str_replace('-', '', $id), 0, 16);
+            $secret = $protocol === 'wireguard' ? null : 'Vpn'.Str::random(21);
+            // A unique opaque value preserves the legacy non-null public-key column for PPP protocols.
+            $storedPublicKey = $protocol === 'wireguard' ? $publicKey : base64_encode(random_bytes(32));
             $identity = (new RouterOsService())->identity($server);
-            DB::table('vpn_peers')->insert(['id' => $id, 'organization_id' => $tenant->id, 'subscription_id' => $subscriptionId, 'vpn_server_id' => $server?->id, 'public_key' => $publicKey, 'gateway_identity' => $identity, 'address' => $address, 'status' => 'queued', 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('vpn_peers')->insert(['id' => $id, 'organization_id' => $tenant->id, 'subscription_id' => $subscriptionId, 'vpn_server_id' => $server?->id, 'protocol' => $protocol, 'public_key' => $storedPublicKey, 'username' => $username, 'connection_secret' => $secret ? Crypt::encryptString($secret) : null, 'gateway_identity' => $identity, 'address' => $address, 'status' => 'queued', 'created_at' => now(), 'updated_at' => now()]);
             DB::table('subscriptions')->where('id', $subscriptionId)->update(['status' => 'provisioning', 'updated_at' => now()]);
             DB::table('subscription_events')->insert(['id' => (string) Str::uuid(), 'organization_id' => $tenant->id, 'subscription_id' => $subscriptionId, 'from_status' => 'paid', 'to_status' => 'provisioning', 'created_at' => now()]);
-            app(AuditService::class)->record('vpn.provisioning_requested', $user, null, ['peer_id' => $id], $tenant);
+            app(AuditService::class)->record('vpn.provisioning_requested', $user, null, ['peer_id' => $id, 'protocol' => $protocol], $tenant);
             ProvisionPeer::dispatch($id)->afterCommit();
             return $id;
         }, 3);

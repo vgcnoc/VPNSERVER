@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\ProvisionPeer;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\VpnServer;
 use App\Services\BillingService;
 use App\Services\RouterOsService;
 use App\Services\VpnProvisioningService;
@@ -35,7 +36,7 @@ class VpnWorkflowTest extends TestCase
     public function test_unpaid_subscription_cannot_allocate_ip(): void
     {
         [$user, $tenant, $sub] = $this->setupOrder();
-        $this->actingAs($user)->post(route('vpn.provision', $sub->id), ['public_key' => base64_encode(random_bytes(32))])->assertStatus(409);
+        $this->actingAs($user)->post(route('vpn.provision', $sub->id), ['protocol' => 'wireguard', 'public_key' => base64_encode(random_bytes(32))])->assertStatus(409);
         $this->assertDatabaseCount('vpn_peers', 0);
     }
 
@@ -46,8 +47,8 @@ class VpnWorkflowTest extends TestCase
         $this->mock(RouterOsService::class)->shouldReceive('health')->once()->andReturn(['version' => '7.20']);
         $key = base64_encode(random_bytes(32));
         $service = app(VpnProvisioningService::class);
-        $id = $service->request($user, $tenant, $sub->id, $key);
-        $this->assertSame($id, $service->request($user, $tenant, $sub->id, $key));
+        $id = $service->request($user, $tenant, $sub->id, 'wireguard', $key);
+        $this->assertSame($id, $service->request($user, $tenant, $sub->id, 'wireguard', $key));
         $this->assertDatabaseHas('vpn_peers', ['id' => $id, 'address' => '10.80.0.2']);
         $this->assertDatabaseCount('vpn_peers', 1);
         Queue::assertPushed(ProvisionPeer::class, 1);
@@ -59,7 +60,7 @@ class VpnWorkflowTest extends TestCase
         DB::table('subscriptions')->where('id', $sub->id)->update(['status' => 'paid']);
         $router = $this->mock(RouterOsService::class);
         $router->shouldReceive('health')->andReturn(['version' => '7.20']);
-        $id = app(VpnProvisioningService::class)->request($user, $tenant, $sub->id, base64_encode(random_bytes(32)));
+        $id = app(VpnProvisioningService::class)->request($user, $tenant, $sub->id, 'wireguard', base64_encode(random_bytes(32)));
         $router->shouldReceive('provision')->once()->andThrow(new \RuntimeException('Sensitive upstream detail'));
         try {
             (new ProvisionPeer($id))->handle($router);
@@ -72,13 +73,38 @@ class VpnWorkflowTest extends TestCase
         $this->assertDatabaseHas('provisioning_jobs', ['status' => 'failed', 'error_code' => 'GATEWAY_VERIFICATION_FAILED']);
     }
 
+    public function test_l2tp_request_creates_encrypted_ppp_credentials_and_activates_after_router_verification(): void
+    {
+        [$user, $tenant, $sub] = $this->setupOrder();
+        DB::table('subscriptions')->where('id', $sub->id)->update(['status' => 'paid']);
+        $server = VpnServer::query()->create([
+            'name' => 'L2TP CHR', 'protocol' => 'l2tp_ipsec', 'endpoint' => 'https://chr-l2tp.test', 'client_endpoint' => 'vpn.example.test',
+            'username' => 'svc', 'password' => 'router-secret', 'protocol_secret' => 'ipsec-secret', 'wireguard_interface' => 'wg-unused',
+            'pool_prefix' => '10.81.0', 'capacity' => 20, 'status' => 'active', 'health_status' => 'healthy',
+        ]);
+        $router = $this->mock(RouterOsService::class);
+        $router->shouldReceive('health')->once()->withArgs(fn (VpnServer $candidate) => $candidate->is($server))->andReturn(['version' => '7.20']);
+
+        $id = app(VpnProvisioningService::class)->request($user, $tenant, $sub->id, 'l2tp_ipsec');
+        $peer = DB::table('vpn_peers')->where('id', $id)->first();
+        $this->assertSame('l2tp_ipsec', $peer->protocol);
+        $this->assertStringStartsWith('vpn', $peer->username);
+        $this->assertNotEmpty($peer->connection_secret);
+        $this->assertStringNotContainsString('Vpn', $peer->connection_secret);
+
+        $router->shouldReceive('provision')->once()->andReturn(['name' => $peer->username, 'disabled' => 'false']);
+        (new ProvisionPeer($id))->handle($router);
+        $this->assertDatabaseHas('vpn_peers', ['id' => $id, 'status' => 'verified']);
+        $this->assertDatabaseHas('subscriptions', ['id' => $sub->id, 'status' => 'active']);
+    }
+
     public function test_handshake_activates_once_and_verified_expiry_suspends(): void
     {
         [$user, $tenant, $sub] = $this->setupOrder();
         DB::table('subscriptions')->where('id', $sub->id)->update(['status' => 'paid']);
         $router = $this->mock(RouterOsService::class);
         $router->shouldReceive('health')->andReturn(['version' => '7.20']);
-        $id = app(VpnProvisioningService::class)->request($user, $tenant, $sub->id, base64_encode(random_bytes(32)));
+        $id = app(VpnProvisioningService::class)->request($user, $tenant, $sub->id, 'wireguard', base64_encode(random_bytes(32)));
         $router->shouldReceive('provision')->once()->andReturn(['last-handshake' => '12s', 'rx' => '123', 'tx' => '100']);
         (new ProvisionPeer($id))->handle($router);
         $this->assertDatabaseHas('subscriptions', ['status' => 'provisioning']);

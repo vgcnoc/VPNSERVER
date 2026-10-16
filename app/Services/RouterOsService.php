@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\VpnServer;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Crypt;
 
 class RouterOsService
 {
@@ -11,7 +12,7 @@ class RouterOsService
     {
         $settings = $this->settings($server);
 
-        return hash('sha256', json_encode([$server?->id, $settings['url'], $settings['interface'], $settings['public_key'], $settings['pool_prefix']]));
+        return hash('sha256', json_encode([$server?->id, $server?->protocol, $settings['url'], $settings['interface'], $settings['public_key'], $settings['pool_prefix']]));
     }
 
     /** @return array{enabled: bool, url: mixed, username: mixed, password: mixed, interface: mixed, public_key: mixed, pool_prefix: mixed, capacity: int} */
@@ -116,6 +117,65 @@ class RouterOsService
         return $peers[0] ?? null;
     }
 
+    private function pppProfile(VpnServer $server): string
+    {
+        return 'vpnrent-'.$server->protocol.'-'.substr(str_replace('-', '', $server->id), 0, 8);
+    }
+
+    private function pppSecret(object $peer, ?VpnServer $server): ?array
+    {
+        if (! $server) {
+            throw new \RuntimeException('A managed RouterOS server is required for this protocol.');
+        }
+        $secrets = $this->call($server, 'GET', 'ppp/secret', [
+            'comment' => 'vpnrent:'.$peer->id,
+            '.proplist' => '.id,name,profile,comment,remote-address,disabled,last-logged-in',
+        ]);
+        if (count($secrets) > 1) {
+            throw new \RuntimeException('Duplicate PPP accounts require infrastructure review.');
+        }
+
+        return $secrets[0] ?? null;
+    }
+
+    private function verifyPpp(array $remote, object $peer, VpnServer $server): void
+    {
+        if (($remote['name'] ?? '') !== ($peer->username ?? '')
+            || ($remote['profile'] ?? '') !== $this->pppProfile($server)
+            || ($remote['comment'] ?? '') !== 'vpnrent:'.$peer->id
+            || ($remote['remote-address'] ?? '') !== ($peer->address ?? '')) {
+            throw new \RuntimeException('Gateway PPP account identity mismatch; manual review required.');
+        }
+    }
+
+    private function provisionPpp(object $peer, VpnServer $server): array
+    {
+        $this->health($server);
+        $remote = $this->pppSecret($peer, $server);
+        if (! $remote) {
+            try {
+                $password = Crypt::decryptString((string) ($peer->connection_secret ?? ''));
+            } catch (\Throwable) {
+                throw new \RuntimeException('VPN account secret is unavailable.');
+            }
+            $this->call($server, 'PUT', 'ppp/secret', [
+                'name' => $peer->username,
+                'password' => $password,
+                'profile' => $this->pppProfile($server),
+                'remote-address' => $peer->address,
+                'comment' => 'vpnrent:'.$peer->id,
+                'disabled' => 'false',
+            ]);
+            $remote = $this->pppSecret($peer, $server);
+        }
+        if (! $remote || ($remote['disabled'] ?? '') !== 'false') {
+            throw new \RuntimeException('PPP account creation could not be verified.');
+        }
+        $this->verifyPpp($remote, $peer, $server);
+
+        return $remote;
+    }
+
     private function verify(array $remote, object $peer, array $settings): void
     {
         if (($remote['public-key'] ?? '') !== $peer->public_key || ($remote['interface'] ?? '') !== $settings['interface']
@@ -128,6 +188,13 @@ class RouterOsService
     {
         $settings = $this->settings($server);
         $this->assertGateway($peer, $server);
+        if (($peer->protocol ?? 'wireguard') !== 'wireguard') {
+            if (! $server) {
+                throw new \RuntimeException('A managed RouterOS server is required for this protocol.');
+            }
+
+            return $this->provisionPpp($peer, $server);
+        }
         $this->health($server);
         $remote = $this->peer($peer->id, $server);
         if (! $remote) {
@@ -153,6 +220,19 @@ class RouterOsService
     {
         $settings = $this->settings($server);
         $this->assertGateway($peer, $server);
+        if (($peer->protocol ?? 'wireguard') !== 'wireguard') {
+            if (! $server) {
+                throw new \RuntimeException('A managed RouterOS server is required for this protocol.');
+            }
+            $this->health($server);
+            $remote = $this->pppSecret($peer, $server);
+            if (! $remote || ($remote['disabled'] ?? '') !== 'false') {
+                throw new \RuntimeException('PPP account is missing or disabled; manual review is required.');
+            }
+            $this->verifyPpp($remote, $peer, $server);
+
+            return $remote;
+        }
         $this->health($server);
         $remote = $this->peer($peer->id, $server);
         if (! $remote) {
@@ -170,6 +250,23 @@ class RouterOsService
     {
         $settings = $this->settings($server);
         $this->assertGateway($peer, $server);
+        if (($peer->protocol ?? 'wireguard') !== 'wireguard') {
+            if (! $server) {
+                throw new \RuntimeException('A managed RouterOS server is required for this protocol.');
+            }
+            $remote = $this->pppSecret($peer, $server);
+            if (! $remote || ! preg_match('/^\*[0-9A-Fa-f]+$/D', $remote['.id'] ?? '')) {
+                throw new \RuntimeException('PPP account missing; suspension requires reconciliation.');
+            }
+            $this->verifyPpp($remote, $peer, $server);
+            $this->call($server, 'PATCH', 'ppp/secret/'.rawurlencode($remote['.id']), ['disabled' => 'true']);
+            $result = $this->pppSecret($peer, $server);
+            if (! $result || ($result['disabled'] ?? '') !== 'true') {
+                throw new \RuntimeException('PPP account suspension could not be verified.');
+            }
+            $this->verifyPpp($result, $peer, $server);
+            return;
+        }
         $remote = $this->peer($peer->id, $server);
         if (! $remote) {
             throw new \RuntimeException('Peer missing; suspension requires reconciliation.');

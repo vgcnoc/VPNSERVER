@@ -4,7 +4,7 @@
 @section('heading', 'VPN server management')
 
 @section('content')
-    <p class="max-w-3xl text-sm leading-6 text-slate-600">Register each dedicated RouterOS 7 WireGuard gateway here. Credentials are encrypted at rest and never shown after saving. The default active server receives new VPN peers.</p>
+    <p class="max-w-3xl text-sm leading-6 text-slate-600">Register dedicated RouterOS 7 VPN gateways here. Credentials are encrypted at rest and never shown after saving. WireGuard uses the default server; L2TP/IPsec, SSTP, and OpenVPN use an active server of the matching protocol.</p>
 
     @if($errors->any())
         <div role="alert" class="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
@@ -16,6 +16,7 @@
         <label class="text-sm font-medium text-slate-700">Server name<input required name="name" value="{{ old('name') }}" maxlength="120" placeholder="Jakarta CHR 01" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">VPN protocol<select required name="protocol" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><option value="wireguard" @selected(old('protocol', 'wireguard') === 'wireguard')>WireGuard</option><option value="l2tp_ipsec" @selected(old('protocol') === 'l2tp_ipsec')>L2TP/IPsec</option><option value="sstp" @selected(old('protocol') === 'sstp')>SSTP</option><option value="openvpn" @selected(old('protocol') === 'openvpn')>OpenVPN (TCP)</option></select></label>
         <label class="text-sm font-medium text-slate-700">HTTPS endpoint<input required name="endpoint" value="{{ old('endpoint') }}" type="url" placeholder="https://chr-01.example.net" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
+        <label class="text-sm font-medium text-slate-700">Client VPN endpoint<input required name="client_endpoint" value="{{ old('client_endpoint') }}" placeholder="vpn.example.net" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Public hostname or IP used by customer VPN apps; not the RouterOS REST URL.</span></label>
         <label class="text-sm font-medium text-slate-700">API username<input required name="username" value="{{ old('username') }}" autocomplete="off" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">API password<input required name="password" type="password" autocomplete="new-password" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"></label>
         <label class="text-sm font-medium text-slate-700">L2TP/IPsec pre-shared key<input name="protocol_secret" type="password" autocomplete="new-password" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-violet-500 focus:ring-violet-500"><span class="mt-1 block text-xs font-normal text-slate-500">Required for L2TP/IPsec only.</span></label>
