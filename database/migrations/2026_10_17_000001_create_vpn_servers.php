@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->string('username', 255);
             $table->text('password');
             $table->string('wireguard_interface', 64);
-            $table->string('wireguard_public_key', 44);
+            $table->string('wireguard_public_key', 44)->nullable();
             $table->string('pool_prefix', 15);
             $table->unsignedSmallInteger('capacity')->default(100);
             $table->enum('status', ['draft', 'active', 'disabled'])->default('draft')->index();

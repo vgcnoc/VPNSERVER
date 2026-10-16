@@ -26,12 +26,19 @@ class VpnServerManagementTest extends TestCase
             ->assertRedirect();
 
         $server = VpnServer::query()->firstOrFail();
-        $this->assertTrue($server->is_default);
-        $this->assertSame('active', $server->status);
+        $this->assertFalse($server->is_default);
+        $this->assertSame('draft', $server->status);
+        $this->assertNull($server->wireguard_public_key);
         $this->assertSame($password, $server->password);
         $this->assertNotSame($password, DB::table('vpn_servers')->value('password'));
         $this->actingAs($user)->withSession(['active_organization_id' => $organization->id])
             ->get(route('vpn-servers.index'))->assertOk()->assertSee('Jakarta CHR 01')->assertSee('VPN server management');
+
+        $publicKey = base64_encode(random_bytes(32));
+        $this->actingAs($user)->withSession(['active_organization_id' => $organization->id])
+            ->post(route('vpn-servers.public-key', $server), ['wireguard_public_key' => $publicKey])
+            ->assertRedirect(route('vpn-servers.index'));
+        $this->assertDatabaseHas('vpn_servers', ['id' => $server->id, 'wireguard_public_key' => $publicKey]);
     }
 
     public function test_non_admin_cannot_manage_vpn_servers(): void
@@ -50,6 +57,7 @@ class VpnServerManagementTest extends TestCase
     {
         $server = VpnServer::query()->create($this->payload('encrypted-at-rest') + [
             'id' => (string) Str::uuid(),
+            'wireguard_public_key' => base64_encode(random_bytes(32)),
             'status' => 'active',
             'health_status' => 'unknown',
         ]);
@@ -85,7 +93,6 @@ class VpnServerManagementTest extends TestCase
             'username' => 'vpnrent-api',
             'password' => $password,
             'wireguard_interface' => 'wg-vpnrent',
-            'wireguard_public_key' => base64_encode(random_bytes(32)),
             'pool_prefix' => '10.80.0',
             'capacity' => 100,
         ];

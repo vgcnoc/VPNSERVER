@@ -19,7 +19,8 @@ class RouterOsService
     {
         return $server
             ? [
-                'enabled' => $server->status === 'active',
+                // Draft gateways may be tested, but only active gateways are selected for provisioning.
+                'enabled' => $server->status !== 'disabled',
                 'url' => $server->endpoint,
                 'username' => $server->username,
                 'password' => $server->password,

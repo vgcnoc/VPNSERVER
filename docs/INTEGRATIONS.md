@@ -24,6 +24,8 @@ Reference: https://docs.midtrans.com/docs/snap-snap-integration-guide and https:
 
 Super Admins can now register multiple gateways from **VPN Servers** in the console. The saved password is encrypted at rest and never rendered back to the browser. Add one server, use **Test connection**, then select an active server as **Default**; new provisioning requests use that server and persist its identity with the peer. Disabling a default server intentionally stops new allocations until an active default is selected again. Existing peers remain attached to their original server.
 
+Each server row also has **Generate CHR script**. It creates an idempotency-safe RouterOS 7 bootstrap script for the WireGuard interface and its `.1/24` gateway address; the script intentionally does not alter firewall, NAT, routes, certificates, or REST exposure. On PHP installations without secure Curve25519 key generation, RouterOS generates the key pair locally and prints the public key. Paste that public key back into the form before testing, activating, and selecting the server as default. The private key remains on the CHR.
+
 Direct CHR WireGuard management is implemented; Linux WireGuard, failover and arbitrary RouterOS scripting are not implemented. Before enabling gateway writes:
 
 1. Confirm this is an authorized test gateway. Take and retain a CHR backup independently before changing network settings.

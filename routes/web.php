@@ -32,6 +32,9 @@ Route::middleware(['auth', 'verified', 'tenant', 'throttle:60,1'])->group(functi
     Route::post('/vpn-servers/{server}/default', [VpnServerController::class, 'makeDefault'])->middleware('role:super-admin')->name('vpn-servers.default');
     Route::post('/vpn-servers/{server}/toggle', [VpnServerController::class, 'toggle'])->middleware('role:super-admin')->name('vpn-servers.toggle');
     Route::post('/vpn-servers/{server}/check', [VpnServerController::class, 'check'])->middleware('role:super-admin')->name('vpn-servers.check');
+    Route::get('/vpn-servers/{server}/script', [VpnServerController::class, 'script'])->middleware('role:super-admin')->name('vpn-servers.script');
+    Route::post('/vpn-servers/{server}/script', [VpnServerController::class, 'regenerateScript'])->middleware('role:super-admin')->name('vpn-servers.script.regenerate');
+    Route::post('/vpn-servers/{server}/public-key', [VpnServerController::class, 'setPublicKey'])->middleware('role:super-admin')->name('vpn-servers.public-key');
     Route::get('/automation', [AutomationController::class, 'index'])->name('automation.index');
     Route::post('/vpn/{subscription}/provision', [\App\Http\Controllers\VpnController::class, 'provision'])->name('vpn.provision');
     Route::post('/vpn/peers/{peer}/retry', [\App\Http\Controllers\VpnController::class, 'retry'])->name('vpn.retry');
