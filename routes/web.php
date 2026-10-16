@@ -32,6 +32,8 @@ Route::middleware(['auth', 'verified', 'tenant', 'throttle:60,1'])->group(functi
     Route::post('/vpn-servers/{server}/default', [VpnServerController::class, 'makeDefault'])->middleware('role:super-admin')->name('vpn-servers.default');
     Route::post('/vpn-servers/{server}/toggle', [VpnServerController::class, 'toggle'])->middleware('role:super-admin')->name('vpn-servers.toggle');
     Route::post('/vpn-servers/{server}/check', [VpnServerController::class, 'check'])->middleware('role:super-admin')->name('vpn-servers.check');
+    Route::get('/vpn-servers/{server}/connection', [VpnServerController::class, 'editConnection'])->middleware('role:super-admin')->name('vpn-servers.connection.edit');
+    Route::patch('/vpn-servers/{server}/connection', [VpnServerController::class, 'updateConnection'])->middleware('role:super-admin')->name('vpn-servers.connection.update');
     Route::get('/vpn-servers/{server}/script', [VpnServerController::class, 'script'])->middleware('role:super-admin')->name('vpn-servers.script');
     Route::post('/vpn-servers/{server}/script', [VpnServerController::class, 'regenerateScript'])->middleware('role:super-admin')->name('vpn-servers.script.regenerate');
     Route::post('/vpn-servers/{server}/public-key', [VpnServerController::class, 'setPublicKey'])->middleware('role:super-admin')->name('vpn-servers.public-key');

@@ -128,6 +128,35 @@ class VpnServerController extends Controller
         }
     }
 
+    public function editConnection(VpnServer $server): View
+    {
+        return view('vpn-servers.connection', ['server' => $server]);
+    }
+
+    public function updateConnection(VpnServer $server, Request $request, AuditService $audit): RedirectResponse
+    {
+        $data = $request->validate([
+            'endpoint' => ['required', 'url:https', 'max:2048', Rule::unique('vpn_servers', 'endpoint')->ignore($server->id)],
+            'client_endpoint' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/D'],
+            'username' => ['required', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'max:4096'],
+        ]);
+        $hasPeers = DB::table('vpn_peers')->where('vpn_server_id', $server->id)->exists();
+        abort_if($hasPeers && $data['endpoint'] !== $server->endpoint, 409, 'The management endpoint cannot change while this server has allocated customer connections.');
+
+        $changes = [
+            'endpoint' => $data['endpoint'], 'client_endpoint' => $data['client_endpoint'], 'username' => $data['username'],
+            'health_status' => 'unknown', 'last_checked_at' => null, 'last_error' => null,
+        ];
+        if (filled($data['password'] ?? null)) {
+            $changes['password'] = $data['password'];
+        }
+        $server->update($changes);
+        $audit->record('vpn.server_connection_updated', $request->user(), $server, ['name' => $server->name]);
+
+        return to_route('vpn-servers.index')->with('status', 'API connection details updated. Test the connection before enabling the server.');
+    }
+
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
